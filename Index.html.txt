@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        .gradient-bg {
+            background: linear-gradient(to right, #4c51bf, #5a67d8);
+        }
+        .card {
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .hidden {
+            display: none;
+        }
+        .microphone-btn.active {
+            animation: pulse-ring 1s infinite;
+            background-color: #ef4444; /* red-500 */
+        }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+            100% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        }
+        .search-container {
+            position: relative;
+            max-width: 600px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 20px 12px 50px; /* Left padding for icon */
+            border: 2px solid #e5e7eb;
+            border-radius: 9999px;
+            background-color: #fff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+        .search-icon-left {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+        }
+        .voice-icon-right {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        .voice-icon-right:hover {
+            color: #1f2937;
+        }
+        
+        /* Sidebar styles */
+        #nav-sidebar {
+            transition: transform 0.3s ease-in-out;
+            transform: translateX(-100%);
+        }
+        #nav-sidebar.open {
+            transform: translateX(0);
+        }
+
+        /* Category button styles */
+        .filter-btn.active {
+            background-color: #3b82f6;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        window.firebase = {
+            initializeApp,
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged,
+            getFirestore,
+            doc,
+            getDoc,
+            addDoc,
+            setDoc,
+            updateDoc,
+            deleteDoc,
+            onSnapshot,
+            collection,
+            query,
+            where,
+            addDoc,
+            getDocs
+        };
+    </script>
+    
+    <!-- Loading Screen -->
+    <div id="loading" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-[100] text-white">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+        <p class="ml-4 text-xl">Loading...</p>
+    </div>
+
+    <!-- Header and Navigation -->
+    <header class="bg-white shadow-xl sticky top-0 z-50 py-4 px-6">
+        <div class="container mx-auto flex items-center justify-between">
+            <!-- Left Side: Hamburger Menu and Settings -->
+            <div class="flex items-center space-x-4">
+                <button id="hamburger-menu" class="text-gray-800 hover:text-gray-600 transition-colors duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                    </svg>
+                </button>
+                <button id="settings-btn" class="text-gray-800 hover:text-gray-600 transition-colors duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.228.318 2.573-1.066z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Center: App Name -->
+            <div class="flex-grow text-center">
+                <a href="#" class="text-3xl font-extrabold text-blue-800 hover:text-blue-950 transition-colors duration-300" id="home-link">Review Center</a>
+            </div>
+
+            <!-- Right Side: Placeholder for symmetry -->
+            <div class="flex items-center w-20 justify-end">
+                <!-- Symmetrical spacing -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-12">
+        <!-- AI Web Search Section -->
+        <section id="ai-search-section">
+            <div class="flex flex-col items-center justify-center mb-12">
+                <div class="search-container w-full relative mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 search-icon-left" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input type="text" id="ai-search-input" placeholder="Product search karein..." class="search-input">
+                    <button id="voice-search-btn" class="voice-icon-right">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.4-3c0 3.01-2.45 5.2-5.4 5.2s-5.4-2.19-5.4-5.2H5c0 3.42 2.76 6.25 6 6.88V21h2v-3.12c3.24-.63 6-3.46 6-6.88h-2.6z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Web Search Results Section -->
+        <section id="web-search-section" class="section hidden mb-8">
+            <h2 class="text-4xl font-extrabold text-gray-900 mb-6 text-center">Web Results</h2>
+            <div id="web-search-results" class="space-y-6">
+                <!-- AI-generated web results will be rendered here -->
+            </div>
+        </section>
+
+        <!-- Home Section -->
+        <section id="home-section" class="section">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-extrabold leading-tight text-gray-900">
+                    Honest Analysis of Products
+                </h1>
+                <p class="mt-4 text-xl text-gray-600">
+                    The Right Information for Your Every Purchase.
+                </p>
+            </div>
+            
+            <!-- Category Filter -->
+            <div class="flex flex-wrap items-center justify-center space-x-2 space-y-2 md:space-y-0 mb-8">
+                <button class="filter-btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-full transition-colors duration-300 hover:bg-blue-700" data-category="All">All</button>
+                <button class="filter-btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-full transition-colors duration-300 hover:bg-blue-700 hover:text-white" data-category="Electronics">Electronics</button>
+                <button class="filter-btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-full transition-colors duration-300 hover:bg-blue-700 hover:text-white" data-category="Fashion">Fashion</button>
+                <button class="filter-btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-full transition-colors duration-300 hover:bg-blue-700 hover:text-white" data-category="Books">Books</button>
+                <button class="filter-btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-full transition-colors duration-300 hover:bg-blue-700 hover:text-white" data-category="Home & Kitchen">Home & Kitchen</button>
+                <button class="filter-btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-full transition-colors duration-300 hover:bg-blue-700 hover:text-white" data-category="Health & Beauty">Health & Beauty</button>
+                <button class="filter-btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-full transition-colors duration-300 hover:bg-blue-700 hover:text-white" data-category="Medicines">Medicines</button>
+                <button class="filter-btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-full transition-colors duration-300 hover:bg-blue-700 hover:text-white" data-category="Others">Others</button>
+            </div>
+            
+            <div id="reviews-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Reviews yahan par dynamically render honge -->
+            </div>
+        </section>
+
+        <!-- Add Review Section -->
+        <section id="addReview-section" class="section hidden">
+            <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg">
+                <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Add a New Review</h2>
+                <form id="review-form" class="space-y-6">
+                    <div>
+                        <label for="productName" class="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                        <input type="text" id="productName" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Example: Bluetooth Speaker" required>
+                    </div>
+                    <div>
+                        <label for="category" class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select id="category" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                            <option value="">Choose a category</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Fashion">Fashion</option>
+                            <option value="Books">Books</option>
+                            <option value="Home & Kitchen">Home & Kitchen</option>
+                            <option value="Health & Beauty">Health & Beauty</option>
+                            <option value="Medicines">Medicines</option>
+                            <option value="Others">Others</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="reviewTitle" class="block text-sm font-medium text-gray-700 mb-1">Review Title</label>
+                        <input type="text" id="reviewTitle" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Example: Best Sound and Battery Life" required>
+                    </div>
+                    <div>
+                        <label for="reviewContent" class="block text-sm font-medium text-gray-700 mb-1">Review Details</label>
+                        <textarea id="reviewContent" rows="6" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Write about your experience in detail..." required></textarea>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button type="button" id="generateSummaryBtn" class="bg-violet-600 text-white font-semibold py-3 px-4 rounded-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                            Generate AI Summary
+                        </button>
+                        <div id="summary-loading" class="hidden flex items-center space-x-2">
+                            <div class="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-violet-500"></div>
+                            <span>Generating...</span>
+                        </div>
+                    </div>
+                    <div id="ai-summary-container" class="border border-violet-300 bg-violet-50 p-4 rounded-lg hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">AI-generated Summary</label>
+                        <p id="ai-summary-text" class="text-gray-800"></p>
+                    </div>
+                    <div>
+                        <label for="productImage" class="block text-sm font-medium text-gray-700 mb-1">Product Image URL</label>
+                        <input type="url" id="productImage" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://www.example.com/image.jpg">
+                    </div>
+                     <div>
+                        <label for="productVideo" class="block text-sm font-medium text-gray-700 mb-1">Product Video URL</label>
+                        <input type="url" id="productVideo" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://www.example.com/video.mp4">
+                    </div>
+                    <div>
+                        <label for="affiliateLink" class="block text-sm font-medium text-gray-700 mb-1">Affiliate Link</label>
+                        <input type="url" id="affiliateLink" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://www.example.com/affiliate-link" required>
+                    </div>
+                    <button type="submit" class="w-full gradient-bg text-white font-semibold py-3 px-4 rounded-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">Add Review</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- About Us Section -->
+        <section id="about-us-section" class="section hidden">
+            <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg text-center">
+                <h2 class="text-3xl font-bold text-gray-800 mb-6">About Us</h2>
+                <img src="https://placehold.co/800x400/21539E/FFFFFF?text=About+Us" alt="About Us Banner" class="mx-auto mb-6 rounded-xl shadow-md">
+                <p class="text-gray-700 leading-relaxed text-lg mb-4">
+                    Our goal is to make your shopping easier and better. We provide honest reviews of various products here, so you can gather complete information before buying anything. Our reviews are completely unbiased and truthful because we know that your money is very valuable.
+                </p>
+                 <p class="text-gray-700 leading-relaxed text-lg mb-4">
+                    In every review, we share product features, their pros and cons, and a link to purchase them. This way, you get all the necessary information in one place.
+                </p>
+                <p class="text-gray-700 leading-relaxed text-lg">
+                    Our team is made up of technology and product experts who research new products every day. Thank you for being with us!
+                </p>
+            </div>
+        </section>
+
+        <!-- Blog Section -->
+        <section id="blog-section" class="section hidden">
+            <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg text-center">
+                <h2 class="text-3xl font-bold text-gray-800 mb-6">Blog</h2>
+                <img src="https://placehold.co/800x400/21539E/FFFFFF?text=Our+Blog" alt="Blog Banner" class="mx-auto mb-6 rounded-xl shadow-md">
+                <p class="text-gray-700 leading-relaxed text-lg mb-4">
+                    In our blog, you will find articles about product-related tips, tricks, guides, and industry trends. We will keep you updated with every new product launch and its details.
+                </p>
+                <div class="mt-8 space-y-6 text-left">
+                    <div class="p-4 rounded-lg bg-gray-50 shadow-sm">
+                        <h3 class="text-xl font-bold text-blue-700">5 Tips for Choosing the Best Earbuds</h3>
+                        <p class="text-gray-600 mt-2">Learn what to keep in mind while buying earbuds. Read more...</p>
+                    </div>
+                    <div class="p-4 rounded-lg bg-gray-50 shadow-sm">
+                        <h3 class="text-xl font-bold text-blue-700">Guide to Smart Home Devices</h3>
+                        <p class="text-gray-600 mt-2">Complete guide to smart home devices. Make your home smarter. Read more...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Us Section -->
+        <section id="contact-us-section" class="section hidden">
+            <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg">
+                <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Contact Us</h2>
+                <p class="text-center text-gray-700 mb-6">If you have any questions or suggestions, please contact us.</p>
+                <form class="space-y-6">
+                    <div>
+                        <label for="contact-name" class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                        <input type="text" id="contact-name" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Your Full Name" required>
+                    </div>
+                    <div>
+                        <label for="contact-email" class="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
+                        <input type="email" id="contact-email" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="email@example.com" required>
+                    </div>
+                    <div>
+                        <label for="contact-message" class="block text-sm font-medium text-gray-700 mb-1">Your Message</label>
+                        <textarea id="contact-message" rows="6" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Write your message..." required></textarea>
+                    </div>
+                    <button type="submit" class="w-full gradient-bg text-white font-semibold py-3 px-4 rounded-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">Submit</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settings-section" class="section hidden">
+            <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg">
+                <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">Settings</h2>
+                <div class="space-y-6">
+                    <div>
+                        <label for="language-select" class="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                        <select id="language-select" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="en" selected>English</option>
+                            <option value="hi">Hindi</option>
+                            <option value="hinglish">Hinglish</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-2">Note: This is a placeholder for future functionality. The website is currently only available in English.</p>
+                    </div>
+                    <div class="text-center">
+                        <span id="user-id-display" class="text-sm font-mono text-gray-500">User ID: Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- Custom Modal/Message Box -->
+        <div id="modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden z-[200]">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-80 text-center">
+                <p id="modal-message" class="text-lg font-medium text-gray-800 mb-4"></p>
+                <button id="modal-ok-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">OK</button>
+            </div>
+        </div>
+        
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-gray-400 py-10 mt-12">
+        <div class="container mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
+            <!-- Site Info -->
+            <div>
+                <h3 class="text-2xl font-bold text-white mb-4">Review Center</h3>
+                <p class="text-sm">The right information for your shopping.</p>
+                <p class="text-sm mt-2">We earn from affiliate links.</p>
+            </div>
+            
+            <!-- Quick Links -->
+            <div>
+                <h3 class="text-lg font-semibold text-white mb-4">Quick Links</h3>
+                <ul class="space-y-2">
+                    <li><a href="#" class="hover:text-white transition-colors duration-300" data-section="about-us">About Us</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors duration-300" data-section="blog">Blog</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors duration-300" data-section="contact-us">Contact Us</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors duration-300" data-section="addReview">Write a Review</a></li>
+                </ul>
+            </div>
+            
+            <!-- Social Media -->
+            <div>
+                <h3 class="text-lg font-semibold text-white mb-4">Follow Us</h3>
+                <div class="flex justify-center md:justify-start space-x-4">
+                    <!-- Twitter Icon -->
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.585 0-6.494 2.91-6.494 6.494 0 .509.057 1.006.169 1.485-5.397-.27-10.198-2.859-13.402-6.795-.556.958-.876 2.074-.876 3.284 0 2.259 1.159 4.243 2.919 5.414-.76-.023-1.472-.234-2.09-.575v.081c0 3.166 2.251 5.8 5.232 6.398-.553.15-.152.285-.92.285-1.123 0-2.203-.618-2.203-1.123 0-.022.012-.045.022-.066.828 2.585 3.243 4.475 6.185 4.526-2.246 1.764-5.071 2.812-8.156 2.812-.524 0-1.042-.031-1.556-.091 2.924 1.868 6.397 2.955 10.187 2.955 12.222 0 18.914-10.126 18.914-18.914 0-.288-.006-.575-.016-.862.918-.661 1.705-1.488 2.336-2.433z"/>
+                        </svg>
+                    </a>
+                    <!-- Instagram Icon -->
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.581 4.909 4.909.058 1.267.068 1.647.068 4.851 0 3.204-.012 3.584-.068 4.85-.138 3.238-1.555 4.757-4.919 4.909-1.267.058-1.647.068-4.85.068-3.204 0-3.584-.012-4.85-.068-3.252-.148-4.771-1.581-4.919-4.909-.058-1.267-.068-1.647-.068-4.85 0-3.204.012-3.584.068-4.85.138-3.238 1.555-4.757 4.919-4.909 1.267-.058 1.647-.068 4.85-.068zM12 0c-3.639 0-4.072.016-5.484.08-3.778.174-6.224 2.618-6.398 6.394-.065 1.415-.08 1.854-.08 5.485 0 3.631.015 4.069.08 5.484.174 3.778 2.62 6.224 6.398 6.394 1.415.064 1.853.08 5.484.08 3.631 0 4.069-.016 5.484-.08 3.778-.174 6.224-2.618 6.398-6.394.064-1.415.08-1.853.08-5.484 0-3.631-.016-4.069-.08-5.484-.174-3.778-2.62-6.224-6.394-6.394-1.415-.064-1.853-.08-5.484-.08z"/>
+                        </svg>
+                    </a>
+                    <!-- LinkedIn Icon -->
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M22.235 0H1.765C.79 0 0 .79 0 1.765v20.47C0 23.21.79 24 1.765 24h20.47c.975 0 1.765-.79 1.765-1.765V1.765C24 .79 23.21 0 22.235 0zM7.221 20.46H3.541V8.04H7.221v12.42zM5.381 6.551a1.97 1.97 0 0 1-1.967-1.968c0-1.085.882-1.968 1.967-1.968 1.085 0 1.967.883 1.967 1.968 0 1.083-.882 1.968-1.967 1.968zM20.46 20.46h-3.68v-6.07c0-1.44-.026-3.295-2.008-3.295-2.011 0-2.316 1.57-2.316 3.195v6.17H8.775V8.04h3.535v1.62h.05c.49-.93 1.688-2.022 3.498-2.022 3.743 0 4.436 2.46 4.436 5.654v11.168z"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Copyright -->
+        <div class="mt-8 pt-6 border-t border-gray-700 text-center">
+            <p>&copy; 2024 Review Center. All Rights Reserved.</p>
+        </div>
+    </footer>
+
+    <script type="module">
+        window.onload = async function() {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+            let db, auth, userId;
+            const reviewsList = document.getElementById('reviews-list');
+            const reviewForm = document.getElementById('review-form');
+            const reviewContentTextarea = document.getElementById('reviewContent');
+            const generateSummaryBtn = document.getElementById('generateSummaryBtn');
+            const summaryLoading = document.getElementById('summary-loading');
+            const aiSummaryContainer = document.getElementById('ai-summary-container');
+            const aiSummaryText = document.getElementById('ai-summary-text');
+            const aiSearchInput = document.getElementById('ai-search-input');
+            const voiceSearchBtn = document.getElementById('voice-search-btn');
+            const webSearchResults = document.getElementById('web-search-results');
+            const hamburgerMenuBtn = document.getElementById('hamburger-menu');
+            const settingsBtn = document.getElementById('settings-btn');
+            const modal = document.getElementById('modal');
+            const modalOkBtn = document.getElementById('modal-ok-btn');
+            const homeLink = document.getElementById('home-link');
+            const filterButtons = document.querySelectorAll('.filter-btn');
+
+            let aiGeneratedSummary = "";
+            let allReviews = [];
+            let currentCategory = 'All';
+
+            const showLoading = (show) => {
+                const loadingElement = document.getElementById('loading');
+                if (show) {
+                    loadingElement.classList.remove('hidden');
+                } else {
+                    loadingElement.classList.add('hidden');
+                }
+            };
+            
+            const showModal = (message) => {
+                document.getElementById('modal-message').textContent = message;
+                modal.classList.remove('hidden');
+            };
+
+            const hideModal = () => {
+                modal.classList.add('hidden');
+            };
+
+            const showSection = (sectionId) => {
+                document.querySelectorAll('.section').forEach(section => {
+                    section.classList.add('hidden');
+                });
+                document.getElementById(`${sectionId}-section`).classList.remove('hidden');
+                
+                // Reset category buttons when navigating away from home
+                if (sectionId !== 'home') {
+                    filterButtons.forEach(btn => {
+                        btn.classList.remove('active', 'bg-blue-600', 'text-white');
+                        btn.classList.add('bg-gray-200', 'text-gray-800');
+                    });
+                }
+            };
+            
+            const renderReviews = (reviews) => {
+                reviewsList.innerHTML = '';
+                
+                const filteredReviews = currentCategory === 'All'
+                    ? reviews
+                    : reviews.filter(review => review.category === currentCategory);
+
+                if (filteredReviews.length === 0) {
+                    reviewsList.innerHTML = `<p class="text-center col-span-full text-xl text-gray-500">Is category mein abhi koi reviews nahi hain.</p>`;
+                    return;
+                }
+
+                filteredReviews.sort((a, b) => b.createdAt - a.createdAt);
+
+                filteredReviews.forEach(review => {
+                    const isAuthor = review.authorId === userId;
+                    const deleteButton = isAuthor ? `
+                        <button class="w-full mt-3 bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors duration-300 transform hover:scale-105 delete-review-btn" data-review-id="${review.id}">
+                            Delete
+                        </button>
+                    ` : '';
+                    
+                    const imageHtml = review.productImage ? `<img src="${review.productImage}" onerror="this.onerror=null;this.src='https://placehold.co/400x300/e5e7eb/6b7280?text=Image+Not+Found';" alt="${review.productName}" class="w-full h-48 object-cover rounded-t-xl mb-4">` : '';
+                    const videoHtml = review.productVideo ? `<video src="${review.productVideo}" class="w-full h-48 object-cover rounded-t-xl mb-4" controls></video>` : '';
+                    const mediaHtml = imageHtml || videoHtml || '';
+                    
+                    const summaryHtml = review.summary ? `
+                        <div class="border border-violet-300 bg-violet-50 p-4 rounded-lg mt-4">
+                            <p class="text-sm font-semibold text-violet-800 mb-1">AI Summary:</p>
+                            <p class="text-gray-800">${review.summary}</p>
+                        </div>
+                    ` : '';
+
+                    const reviewHtml = `
+                        <div class="card bg-white p-6 rounded-xl shadow-md flex flex-col justify-between">
+                            <div>
+                                ${mediaHtml}
+                                <span class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full mb-2">${review.category}</span>
+                                <h2 class="text-2xl font-bold text-gray-800 mb-2">${review.reviewTitle || 'No Title'}</h2>
+                                <p class="text-sm text-gray-500 mb-4">By: ${review.authorId}</p>
+                                <div class="text-gray-700 leading-relaxed mb-6 whitespace-pre-wrap">${review.reviewContent || 'Koi content nahi diya gaya hai.'}</div>
+                                ${summaryHtml}
+                            </div>
+                            <div class="mt-auto">
+                                <button class="w-full text-center gradient-bg text-white font-semibold py-3 px-6 rounded-lg hover:shadow-lg transition-all duration-300 transform hover:scale-105 review-product-btn" data-product-name="${review.productName}">
+                                    Is product ke liye web par search karein
+                                </button>
+                                ${deleteButton}
+                            </div>
+                        </div>
+                    `;
+                    reviewsList.innerHTML += reviewHtml;
+                });
+            };
+
+            const fetchReviews = () => {
+                if (!db) {
+                    console.error("Firestore is not initialized.");
+                    showLoading(false);
+                    return;
+                }
+                
+                const reviewCollectionRef = firebase.collection(db, `artifacts/${appId}/public/data/reviews`);
+                firebase.onSnapshot(reviewCollectionRef, (snapshot) => {
+                    allReviews = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    renderReviews(allReviews);
+                    showLoading(false);
+                }, (error) => {
+                    console.error("Error fetching reviews:", error);
+                    showModal("Reviews load karne mein ek galti hui.");
+                    showLoading(false);
+                });
+            };
+            
+            const handleWebSearch = async (query) => {
+                if (!query || query.trim() === "") {
+                    showModal("Kripya search karne ke liye kuch likhein.");
+                    return;
+                }
+            
+                aiSearchInput.value = query;
+                showLoading(true);
+                showSection('web-search');
+                webSearchResults.innerHTML = `<p class="text-center text-gray-500 text-xl animate-pulse">AI web par search kar raha hai...</p>`;
+
+                try {
+                    const payload = {
+                        contents: [{
+                            parts: [{
+                                text: `Find the most relevant product reviews, specifications, and user discussions for "${query}". Provide a concise summary for each result and a link to the source. Format the response as a list of items.`
+                            }]
+                        }],
+                        tools: [{ "google_search": {} }],
+                        model: "gemini-2.5-flash-preview-05-20"
+                    };
+            
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+            
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API error: ${errorData.error.message}`);
+                    }
+            
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+                    let text = candidate?.content?.parts?.[0]?.text;
+                    let sources = [];
+
+                    const groundingMetadata = candidate?.groundingMetadata;
+                    if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                        sources = groundingMetadata.groundingAttributions
+                            .map(attribution => ({
+                                uri: attribution.web?.uri,
+                                title: attribution.web?.title,
+                            }))
+                            .filter(source => source.uri && source.title);
+                    }
+            
+                    if (text) {
+                        webSearchResults.innerHTML = `
+                            <div class="p-6 bg-white rounded-xl shadow-md">
+                                <p class="text-lg text-gray-800 whitespace-pre-wrap">${text}</p>
+                            </div>
+                        `;
+                        if (sources.length > 0) {
+                            let sourcesHtml = '<h3 class="text-xl font-semibold mt-6 mb-2">Sources:</h3><ul class="list-disc pl-5 space-y-2">';
+                            sources.forEach(source => {
+                                sourcesHtml += `<li><a href="${source.uri}" target="_blank" class="text-blue-600 hover:underline">${source.title}</a></li>`;
+                            });
+                            sourcesHtml += '</ul>';
+                            webSearchResults.innerHTML += sourcesHtml;
+                        }
+                    } else {
+                        throw new Error("API se koi result nahi mila.");
+                    }
+            
+                } catch (error) {
+                    console.error("Web search results generate karne mein galti hui:", error);
+                    webSearchResults.innerHTML = `<p class="text-center text-red-500 text-xl">Search mein galti hui: ${error.message}. Kripya baad mein try karein.</p>`;
+                } finally {
+                    showLoading(false);
+                }
+            };
+
+
+            const addReview = async (e) => {
+                e.preventDefault();
+                if (!db || !userId) {
+                    showModal("Review add karne mein ek galti hui. Kripya phir se try karein.");
+                    return;
+                }
+                const productName = document.getElementById('productName').value;
+                const category = document.getElementById('category').value;
+                const reviewTitle = document.getElementById('reviewTitle').value;
+                const reviewContent = document.getElementById('reviewContent').value;
+                const affiliateLink = document.getElementById('affiliateLink').value;
+                const productImage = document.getElementById('productImage').value;
+                const productVideo = document.getElementById('productVideo').value;
+
+                try {
+                    const newReview = {
+                        productName,
+                        category,
+                        reviewTitle,
+                        reviewContent,
+                        summary: aiGeneratedSummary,
+                        affiliateLink,
+                        productImage,
+                        productVideo,
+                        authorId: userId,
+                        createdAt: Date.now()
+                    };
+                    await firebase.addDoc(firebase.collection(db, `artifacts/${appId}/public/data/reviews`), newReview);
+                    showModal("Review safaltapoorvak add kiya gaya!");
+                    reviewForm.reset();
+                    aiGeneratedSummary = "";
+                    aiSummaryContainer.classList.add('hidden');
+                    showSection('home');
+                } catch (error) {
+                    console.error("Error adding document: ", error);
+                    showModal("Review add karne mein ek galti hui. Kripya phir se try karein.");
+                }
+            };
+            
+            const generateSummary = async () => {
+                const userReview = reviewContentTextarea.value.trim();
+                if (userReview.length === 0) {
+                    showModal("Kripya pehle review likhein.");
+                    return;
+                }
+            
+                summaryLoading.classList.remove('hidden');
+                generateSummaryBtn.disabled = true;
+                aiSummaryContainer.classList.add('hidden');
+            
+                try {
+                    const payload = {
+                        contents: [{
+                            parts: [{
+                                text: `Please provide a concise and brief summary of the following product review, keeping it under 50 words.
+                                Review: ${userReview}`
+                            }]
+                        }],
+                        model: "gemini-2.5-flash-preview-05-20"
+                    };
+            
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+            
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API error: ${errorData.error.message}`);
+                    }
+            
+                    const result = await response.json();
+                    const summary = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+                    if (summary) {
+                        aiGeneratedSummary = summary;
+                        aiSummaryText.textContent = summary;
+                        aiSummaryContainer.classList.remove('hidden');
+                    } else {
+                        throw new Error("API se koi summary nahi mili.");
+                    }
+            
+                } catch (error) {
+                    console.error("Summary generate karne mein galti hui:", error);
+                    showModal(`Summary generate karne mein galti hui: ${error.message}`);
+                    aiGeneratedSummary = "";
+                    aiSummaryContainer.classList.add('hidden');
+                } finally {
+                    summaryLoading.classList.add('hidden');
+                    generateSummaryBtn.disabled = false;
+                }
+            };
+
+            const deleteReview = async (reviewId) => {
+                if (!db) {
+                    showModal("Delete karne mein ek galti hui. Kripya phir se try karein.");
+                    return;
+                }
+                try {
+                    const reviewDocRef = firebase.doc(db, `artifacts/${appId}/public/data/reviews`, reviewId);
+                    const reviewDoc = await firebase.getDoc(reviewDocRef);
+                    
+                    if (reviewDoc.exists() && reviewDoc.data().authorId === userId) {
+                        await firebase.deleteDoc(reviewDocRef);
+                        showModal("Review safaltapoorvak delete kiya gaya!");
+                    } else {
+                        showModal("Aapko is review ko delete karne ki anumati nahi hai.");
+                    }
+                } catch (error) {
+                    console.error("Error deleting document: ", error);
+                    showModal("Review delete karne mein ek galti hui.");
+                }
+            };
+            
+            // Initialize Firebase and Authentication
+            try {
+                showLoading(true);
+
+                if (!firebaseConfig.apiKey) {
+                    throw new Error("Firebase configuration nahi mili. Kripya sure karein ki app sahi tarike se set hai.");
+                }
+
+                const app = firebase.initializeApp(firebaseConfig);
+                db = firebase.getFirestore(app);
+                auth = firebase.getAuth(app);
+                
+                await new Promise((resolve) => {
+                    const unsubscribe = firebase.onAuthStateChanged(auth, async (user) => {
+                        if (!user) {
+                            try {
+                                if (initialAuthToken) {
+                                    await firebase.signInWithCustomToken(auth, initialAuthToken);
+                                } else {
+                                    await firebase.signInAnonymously(auth);
+                                }
+                            } catch (error) {
+                                console.error("Sign in karne mein galti:", error);
+                            }
+                        }
+                        userId = auth.currentUser ? auth.currentUser.uid : crypto.randomUUID();
+                        document.getElementById('user-id-display').textContent = `User ID: ${userId}`;
+                        resolve();
+                    });
+                });
+                
+                fetchReviews();
+
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+                showModal(`Firebase initialization failed: ${error.message}`);
+                showLoading(false);
+            }
+
+            // Attach all event listeners
+            document.querySelectorAll('a[data-section]').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showSection(e.target.dataset.section);
+                });
+            });
+
+            homeLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                showSection('home');
+                currentCategory = 'All';
+                renderReviews(allReviews);
+                filterButtons.forEach(btn => {
+                    btn.classList.remove('active', 'bg-blue-600', 'text-white');
+                    btn.classList.add('bg-gray-200', 'text-gray-800');
+                });
+                document.querySelector('.filter-btn[data-category="All"]').classList.add('active', 'bg-blue-600', 'text-white');
+                document.querySelector('.filter-btn[data-category="All"]').classList.remove('bg-gray-200', 'text-gray-800');
+            });
+
+            modalOkBtn.addEventListener('click', hideModal);
+            
+            aiSearchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleWebSearch(aiSearchInput.value);
+                }
+            });
+
+
+            // Voice Typing Functionality
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'hi-IN'; // Set language to Hindi
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                voiceSearchBtn.addEventListener('click', () => {
+                    voiceSearchBtn.classList.add('active');
+                    recognition.start();
+                    aiSearchInput.placeholder = "Sun rahe hain...";
+                });
+
+                recognition.onresult = (event) => {
+                    const speechResult = event.results[0][0].transcript;
+                    aiSearchInput.value = speechResult;
+                    aiSearchInput.placeholder = "Product search karein...";
+                    handleWebSearch(speechResult);
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    showModal("Voice typing mein galti hui. Kripya phir se try karein.");
+                    aiSearchInput.placeholder = "Product search karein...";
+                    voiceSearchBtn.classList.remove('active');
+                };
+
+                recognition.onend = () => {
+                    voiceSearchBtn.classList.remove('active');
+                    aiSearchInput.placeholder = "Product search karein...";
+                };
+            } else {
+                voiceSearchBtn.style.display = 'none'; // Hide the button if not supported
+            }
+
+
+            // Use event delegation for dynamic delete and search buttons
+            reviewsList.addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-review-btn')) {
+                    const reviewId = e.target.dataset.reviewId;
+                    deleteReview(reviewId);
+                }
+                if (e.target.classList.contains('review-product-btn')) {
+                    const productName = e.target.dataset.productName;
+                    handleWebSearch(productName);
+                }
+            });
+
+            // This is the core logic for the category buttons.
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const clickedCategory = e.target.dataset.category;
+                    
+                    filterButtons.forEach(b => {
+                        b.classList.remove('active', 'bg-blue-600', 'text-white');
+                        b.classList.add('bg-gray-200', 'text-gray-800');
+                    });
+                    
+                    e.target.classList.add('active', 'bg-blue-600', 'text-white');
+                    e.target.classList.remove('bg-gray-200', 'text-gray-800');
+                    
+                    if (clickedCategory === 'All') {
+                        currentCategory = clickedCategory;
+                        renderReviews(allReviews);
+                        showSection('home');
+                    } else {
+                        handleWebSearch(clickedCategory);
+                    }
+                });
+            });
+            
+            // Set initial active button style for 'All'
+            document.querySelector('.filter-btn[data-category="All"]').classList.add('active', 'bg-blue-600', 'text-white');
+            document.querySelector('.filter-btn[data-category="All"]').classList.remove('bg-gray-200', 'text-gray-800');
+            
+            // Hamburger menu and settings event listeners
+            hamburgerMenuBtn.addEventListener('click', () => {
+                showModal("Yeh functionality abhi available nahi hai.");
+            });
+
+            settingsBtn.addEventListener('click', () => {
+                showSection('settings');
+            });
+
+            reviewForm.addEventListener('submit', addReview);
+            generateSummaryBtn.addEventListener('click', generateSummary);
+        };
+    </script>
+</body>
+</html>
+
